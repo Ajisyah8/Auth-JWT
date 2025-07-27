@@ -31,24 +31,58 @@ class AuthController extends Controller
     {
         $credentials = $request->only('email', 'password');
 
-        if (!$token = Auth::guard('api')->attempt($credentials)) {
-            return response()->json(['error' => 'Unauthorized'], 401);
+        if (!$token = JWTAuth::attempt($credentials)) {
+            return response()->json([
+                'error' => 'Unauthorized',
+                'message' => 'Email atau password salah'
+            ], 401);
         }
 
         return response()->json([
             'token' => $token,
-            'user' => Auth::guard('api')->user()
+            'user' => JWTAuth::user(),
+            'token_type' => 'bearer',
+            'expires_in' => JWTAuth::factory()->getTTL() * 60
         ]);
     }
 
     public function user()
     {
-        return response()->json(Auth::guard('api')->user());
+        try {
+            $user = JWTAuth::parseToken()->authenticate();
+            return response()->json($user);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'User not found'], 404);
+        }
     }
 
     public function logout()
     {
-        Auth::guard('api')->logout();
-        return response()->json(['message' => 'Logged out']);
+        try {
+            JWTAuth::invalidate(JWTAuth::getToken());
+            return response()->json([
+                'message' => 'Successfully logged out'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Failed to logout, please try again'
+            ], 500);
+        }
+    }
+
+    public function refresh()
+    {
+        try {
+            $newToken = JWTAuth::refresh(JWTAuth::getToken());
+            return response()->json([
+                'token' => $newToken,
+                'token_type' => 'bearer',
+                'expires_in' => JWTAuth::factory()->getTTL() * 60
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Could not refresh token'
+            ], 401);
+        }
     }
 }
